@@ -275,6 +275,8 @@ const inputSpectrogram = document.getElementById("inputSpectrogram");
 const outputSpectrogram = document.getElementById("outputSpectrogram");
 const inputCtx = inputSpectrogram.getContext("2d");
 const outputCtx = outputSpectrogram.getContext("2d");
+
+
 inputCtx.fillStyle = '#000000';
 inputCtx.fillRect(0, 0, inputSpectrogram.width, inputSpectrogram.height);
 outputCtx.fillStyle = '#000000';
@@ -437,6 +439,8 @@ function drawSpectrogram(data,canvas) {
 
 const playButton = document.getElementById("play-button");
 const pauseButton = document.getElementById("pause-button");
+const hideSpectrogramBtn = document.getElementById("spectrogramBtn"); //Checkbox for hiding spectrogram
+
 var isPlaying = false;
 var intervalId = null;
 var updateInterval = 50; // milliseconds
@@ -466,8 +470,21 @@ playButton.addEventListener("click", (e) => {
     }
 });
 
+hideSpectrogramBtn.addEventListener("click", (e) => {
+  if (hideSpectrogramBtn.checked) {
+    inputSpectrogram.classList.remove("hidden");
+    outputSpectrogram.classList.remove("hidden");
+  } else {
+    inputSpectrogram.classList.add("hidden");
+    outputSpectrogram.classList.add("hidden");
+  }
+});
+
+
 const dropdowns = document.querySelectorAll('[data-dropdown-toggle]');
 const collapses = document.querySelectorAll('[data-collapse-toggle]');
+
+
 
 dropdowns.forEach(dropdown => {
     dropdown.addEventListener('click', function() {
