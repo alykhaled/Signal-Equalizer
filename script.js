@@ -1,11 +1,11 @@
-// import { Chart } from 'chart.js'; 
+// import { Chart } from 'chart.js';
 
-const ctx = document.getElementById('inputChart');
-const ctx2 = document.getElementById('outputChart');
+const ctx = document.getElementById("inputChart");
+const ctx2 = document.getElementById("outputChart");
 const csvFile = document.getElementById("csv-file");
 
-const inputData = []
-const inputTime = []
+const inputData = [];
+const inputTime = [];
 const maxWidth = 500;
 
 const uniformRangeSliders = [
@@ -19,18 +19,9 @@ const uniformRangeSliders = [
   "uniform-range-slider-8",
   "uniform-range-slider-9",
   "uniform-range-slider-10",
-]
+];
 
-const uniformRangeValues = [
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-]
+const uniformRangeValues = [0, 0, 0, 0, 0, 0, 0, 0];
 
 const vowelsSliders = [
   "vowels-slider-a",
@@ -38,161 +29,169 @@ const vowelsSliders = [
   "vowels-slider-i",
   "vowels-slider-o",
   "vowels-slider-u",
-]
+];
 
-const vowelsValues = [
-  0,
-  0,
-  0,
-  0,
-  0,
-]
+const vowelsValues = [0, 0, 0, 0, 0];
 
 const musicalInstrumentsSliders = [
   "musical-instruments-slider-piano",
   "musical-instruments-slider-violin",
   "musical-instruments-slider-trumpet",
   "musical-instruments-slider-guitar",
-]
+];
 
-const musicalInstrumentsValues = [
-  0,
-  0,
-  0,
-  0,
-]
-
-
+const musicalInstrumentsValues = [0, 0, 0, 0];
 
 const inputChart = new Chart(ctx, {
-  type: 'line',
+  type: "line",
   data: {
     labels: [],
-    datasets: [{
-      label: 'Signal',
-      data: [],
-      borderWidth: 1,
-      radius: 0,
-    }]
+    datasets: [
+      {
+        label: "Signal",
+        data: [],
+        borderWidth: 1,
+        radius: 0,
+      },
+    ],
   },
   options: {
     animation: false,
     scales: {
-      x:
-      {
-          max: maxWidth,
-          min: 0,
-
+      x: {
+        max: maxWidth,
+        min: 0,
       },
-      yAxes: [{
-        ticks: {
-          min: -1,
-          max: 1,
-          stepSize: 0.1
-        }
-      }]
-    }
-  }
+
+      yAxes: [
+        {
+          //make the y axis read the lowest value and maximum value of the imported data
+
+          ticks: {
+            min: 0,
+            max: 1,
+            stepSize: 0.1,
+          },
+        },
+      ],
+    },
+  },
 });
 
-// const outputChart = new Chart(ctx2, {
-//     type: "line",
-//     data: {
-//       labels: [],
-//       datasets: [
-//         {
-//           label: "Signal",
-//           data: [],
-//         },
-//       ],
-//     },
-//     options: {
-//       scales: {
-//         yAxes: [
-//           {
-//             ticks: {
-//               beginAtZero: true,
-//             },
-//           },
-//         ],
-//       },
-//     },
-// });
+const outputChart = new Chart(ctx2, {
+  type: "line",
+  data: {
+    labels: [],
+    datasets: [
+      {
+        label: "Signal",
+        data: [],
+      },
+    ],
+  },
+  options: {
+    scales: {
+      yAxes: [
+        {
+          ticks: {
+            beginAtZero: true,
+          },
+        },
+      ],
+    },
+  },
+});
 
+csvFile.addEventListener("change", function () {
+  console.log("file changed");
+  const file = csvFile.files[0];
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    const data = event.target.result;
+    const lines = data.split("\n");
+    inputChart.data.labels = [];
+    inputChart.data.datasets[0].data = [];
+    for (const line of lines) {
+      const values = line.split(",");
+      inputChart.data.labels.push(values[0]);
+      inputChart.data.datasets[0].data.push(values[1]);
+      inputTime.push(values[0]);
+      inputData.push(values[1]);
+    }
 
+    inputChart.update();
+  };
 
-csvFile.addEventListener("change", function() {
-    console.log("file changed");
-    const file = csvFile.files[0];
-    const reader = new FileReader();
-    reader.onload = (event) => {
-        const data = event.target.result;
-        const lines = data.split("\n");
-        inputChart.data.labels = [];
-        inputChart.data.datasets[0].data = [];
-        for (const line of lines) {
-            const values = line.split(",");
-            inputChart.data.labels.push(values[0]);
-            inputChart.data.datasets[0].data.push(values[1]);
-            inputTime.push(values[0]);
-            inputData.push(values[1]);
-        }
-    
-        inputChart.update();
-    };
-  
-    reader.readAsText(file);
+  reader.readAsText(file);
 });
 
 const playButton = document.getElementById("play-button");
 const pauseButton = document.getElementById("pause-button");
+const stopButton = document.getElementById("stop-button");
 var isPlaying = false;
 var intervalId = null;
 var updateInterval = 100; // milliseconds
+var currentIndex = 0;
 
 playButton.addEventListener("click", (e) => {
-    if (isPlaying) {
-        clearInterval(intervalId);
-        isPlaying = false;
-        // change button text
-        e.target.textContent = "Play";
-    } else {
-        var currentIndex = 0;
-        intervalId = setInterval(function () {
-            currentIndex++;
-            if (currentIndex >= inputChart.data.datasets[0].data.length) {
-                currentIndex = 0;
-            }
-            inputChart.data.datasets[0].data.shift();
-            inputChart.data.labels.shift();
-            inputChart.data.labels.push(inputTime[currentIndex]);
-            inputChart.data.datasets[0].data.push(inputData[currentIndex]);
-            inputChart.update();
-        }, updateInterval);
-        isPlaying = true;
-        // change button text
-        e.target.textContent = "Pause";
-    }
+  if (!isPlaying) {
+    intervalId = setInterval(function () {
+      currentIndex = 0;
+      currentIndex++;
+      if (currentIndex >= inputChart.data.datasets[0].data.length) {
+        currentIndex = 0;
+      }
+      inputChart.data.datasets[0].data.shift();
+      inputChart.data.labels.shift();
+      inputChart.data.labels.push(inputTime[currentIndex]);
+      inputChart.data.datasets[0].data.push(inputData[currentIndex]);
+      inputChart.update();
+    }, updateInterval);
+
+    isPlaying = true;
+  }
 });
 
+//Pause Button
+pauseButton.addEventListener("click", () => {
+  clearInterval(intervalId);
+  isPlaying = false;
+});
+
+//Stop Button
+ stopButton.addEventListener("click", () => {
+   clearInterval(intervalId);
+   currentIndex = 0;
+   isPlaying = false;
+   inputChart.data.datasets[0].data = inputData.slice(0);
+   inputChart.data.labels = inputTime.slice(0);
+   inputChart.update();
+ });
 
 
-const dropdowns = document.querySelectorAll('[data-dropdown-toggle]');
-const collapses = document.querySelectorAll('[data-collapse-toggle]');
+const speedSlider = document.getElementById("speed");
+const speedLabel = document.getElementById("speed-label");
 
-dropdowns.forEach(dropdown => {
-    dropdown.addEventListener('click', function() {
-    const dropdownId = this.getAttribute('data-dropdown-toggle');
+// Update the speed label's text when the slider value changes
+speedSlider.addEventListener("input", () => {
+ speedLabel.textContent = speedSlider.value;
+});
+
+const dropdowns = document.querySelectorAll("[data-dropdown-toggle]");
+const collapses = document.querySelectorAll("[data-collapse-toggle]");
+
+dropdowns.forEach((dropdown) => {
+  dropdown.addEventListener("click", function () {
+    const dropdownId = this.getAttribute("data-dropdown-toggle");
     const dropdown = document.getElementById(dropdownId);
-    dropdown.classList.toggle('hidden');
-    });
+    dropdown.classList.toggle("hidden");
+  });
 });
 
-collapses.forEach(collapse => {
-    collapse.addEventListener('click', function() {
-    const collapseId = this.getAttribute('data-collapse-toggle');
+collapses.forEach((collapse) => {
+  collapse.addEventListener("click", function () {
+    const collapseId = this.getAttribute("data-collapse-toggle");
     const collapse = document.getElementById(collapseId);
-    collapse.classList.toggle('hidden');
-    });
+    collapse.classList.toggle("hidden");
+  });
 });
-
