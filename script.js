@@ -23,10 +23,10 @@ class Slider {
 }
 
 class Equalizer {
-  constructor() {
+  constructor(inputData, inputTime) {
     this.sliders = [];
-    this.inputData = [];
-    this.inputTime = [];
+    this.inputData = inputData;
+    this.inputTime = inputTime;
     this.outputData = [];
     this.outputTime = [];
     this.maxWidth = 500;
@@ -35,8 +35,8 @@ class Equalizer {
 }
 
 class UniformRangeEqulizer extends Equalizer {
-  constructor() {
-    super();
+  constructor(inputData, inputTime) {
+    super(inputData, inputTime);
     this.sliders = []
   }
 
@@ -121,13 +121,28 @@ class UniformRangeEqulizer extends Equalizer {
     outputChart.update();
   }
 
+  updateSpectrogram() {
+    const outputSpectrogram = document.getElementById("outputSpectrogram");
+    drawSpectrogram(this.outputData, outputSpectrogram);
+  }
+
+
   equalize() {
+    
     const fftSize = 2 ** Math.ceil(Math.log2(this.inputData.length));
     // Compute sample rate
     const sampleRate = this.inputData.length / this.inputTime[this.inputData.length - 1];
     
     const fft = new FFT(fftSize, sampleRate);
     const mag = new Float32Array(fftSize / 2);
+    // Make sure the inputData array is the same size as the FFT size.
+    // If it's smaller, pad it with zeros.
+    if (this.inputData.length < fftSize) {
+      const newData = new Float32Array(fftSize);
+      newData.set(this.inputData);
+      this.inputData = newData;
+    }
+
     fft.forward(this.inputData, mag);
     
     const magRanges = new Float32Array(this.sliders.length);
@@ -167,12 +182,13 @@ class UniformRangeEqulizer extends Equalizer {
     }
 
     this.outputData = ifftData;
+    console.log(this.outputData);
     this.outputTime = this.inputTime;
-
+    // console.log(this.outputData);
     outputChart.data.labels = this.outputTime;
     outputChart.data.datasets[0].data = this.outputData;
     outputChart.update();
-
+    this.updateSpectrogram();
     // Update the sliders
 
 
@@ -268,7 +284,7 @@ class VowelsEqulizer extends Equalizer{
   }
 }
 
-const uniformRangeEqulizer = new UniformRangeEqulizer();
+const uniformRangeEqulizer = new UniformRangeEqulizer(inputData, inputTime);
 uniformRangeEqulizer.addSliders();
 uniformRangeEqulizer.initSliders();
 const inputSpectrogram = document.getElementById("inputSpectrogram");
@@ -415,17 +431,17 @@ function drawSpectrogram(data,canvas) {
       data.push(0);
   }
   // if it is larger, then truncate it
-  data.length = fftSize;
+  if (data.length > fftSize) {
+      data = data.slice(0, fftSize);
+  }
 
   
-  console.log(data);
 
   fft.forward(data);
   const spectrum = fft.spectrum;
   const sliceWidth = width / spectrum.length;
   let x = 0;
   // get max of spectrum data
-  console.log(data);
   const maxS = Math.max(...spectrum);
   for (let i = 0; i < spectrum.length; i++) {
     const h = map(spectrum[i], 0, maxS, 0, height);
