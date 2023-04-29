@@ -372,6 +372,18 @@ const outputChart = new Chart(ctx2, {
       {
           max: maxWidth,
           min: 0,
+      },
+
+      yAxes: [{
+        ticks: {
+          min: -1,
+          max: 1,
+          stepSize: 0.1
+        }
+      }]
+    }
+  }
+});
 
 csvFile.addEventListener("change", function () {
   console.log("file changed");
@@ -395,74 +407,8 @@ csvFile.addEventListener("change", function () {
 
   reader.readAsText(file);
 });
-      },
-      yAxes: [{
-        ticks: {
-          min: -1,
-          max: 1,
-          stepSize: 0.1
-        }
-      }]
-    }
-  }
-});
 
 
-function map(value, start1, stop1, start2, stop2) {
-  return start2 + (stop2 - start2) * ((value - start1) / (stop1 - start1));
-}
-
-function drawSpectrogram(data,canvas) {
-  var width = canvas.width;
-  var height = canvas.height;
-  // canvas.width = width;
-  // canvas.height = height;
-  var ctx = canvas.getContext('2d');
-  const gradient = ctx.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(1, '#0000ff');
-  gradient.addColorStop(0.5, '#00ffff');
-  gradient.addColorStop(0, '#ffffff');
-  // fill the canvas with black
-  ctx.fillStyle = '#000000';
-  ctx.fillRect(0, 0, width, height);
-
-  const fftSize = 1024; // FFT size (power of 2)
-  const binCount = 256; // number of frequency bins (half of FFT size)
-  
-  const fft = new FFT(fftSize, 44100);
-  // data = data.map((value) => {
-  //     return map(value, -1, 1, 0, 255);
-  // });
-  // Make sure the data array is the same size as the FFT size.
-  // If it is smaller, then zero-pad it.
-  data = data.map((value) => {
-    return value.value;
-  });
-  while (data.length < fftSize) {
-      data.push(0);
-  }
-  // if it is larger, then truncate it
-  data.length = fftSize;
-
-  
-  console.log(data);
-
-  fft.forward(data);
-  const spectrum = fft.spectrum;
-  const sliceWidth = width / spectrum.length;
-  let x = 0;
-  // get max of spectrum data
-  console.log(data);
-  const maxS = Math.max(...spectrum);
-  for (let i = 0; i < spectrum.length; i++) {
-    const h = map(spectrum[i], 0, maxS, 0, height);
-    ctx.fillStyle = gradient;
-    ctx.fillRect(x, height - h, sliceWidth, h);
-    x += sliceWidth;
-  }
-  
-
-}
 
 const playButton = document.getElementById("play-button");
 const pauseButton = document.getElementById("pause-button");
@@ -491,15 +437,6 @@ playButton.addEventListener("click", (e) => {
   }
 });
 
-hideSpectrogramBtn.addEventListener("click", (e) => {
-  if (hideSpectrogramBtn.checked) {
-    inputSpectrogram.classList.remove("hidden");
-    outputSpectrogram.classList.remove("hidden");
-  } else {
-    inputSpectrogram.classList.add("hidden");
-    outputSpectrogram.classList.add("hidden");
-  }
-});
 //Pause Button
 pauseButton.addEventListener("click", () => {
   clearInterval(intervalId);
@@ -516,7 +453,6 @@ pauseButton.addEventListener("click", () => {
    inputChart.update();
  });
 
-
 const speedSlider = document.getElementById("speed");
 const speedLabel = document.getElementById("speed-label");
 
@@ -525,12 +461,75 @@ speedSlider.addEventListener("input", () => {
  speedLabel.textContent = speedSlider.value;
 });
 
-const dropdowns = document.querySelectorAll("[data-dropdown-toggle]");
-const collapses = document.querySelectorAll("[data-collapse-toggle]");
+
+
+function map(value, start1, stop1, start2, stop2) {
+  return start2 + (stop2 - start2) * ((value - start1) / (stop1 - start1));
+}
+
+function drawSpectrogram(data, canvas) {
+  var width = canvas.width;
+  var height = canvas.height;
+  // canvas.width = width;
+  // canvas.height = height;
+  var ctx = canvas.getContext("2d");
+  const gradient = ctx.createLinearGradient(0, 0, 0, height);
+  gradient.addColorStop(1, "#0000ff");
+  gradient.addColorStop(0.5, "#00ffff");
+  gradient.addColorStop(0, "#ffffff");
+  // fill the canvas with black
+  ctx.fillStyle = "#000000";
+  ctx.fillRect(0, 0, width, height);
+
+  const fftSize = 1024; // FFT size (power of 2)
+  const binCount = 256; // number of frequency bins (half of FFT size)
+
+  const fft = new FFT(fftSize, 44100);
+  // data = data.map((value) => {
+  //     return map(value, -1, 1, 0, 255);
+  // });
+  // Make sure the data array is the same size as the FFT size.
+  // If it is smaller, then zero-pad it.
+  data = data.map((value) => {
+    return value.value;
+  });
+  while (data.length < fftSize) {
+    data.push(0);
+  }
+  // if it is larger, then truncate it
+  data.length = fftSize;
+
+  console.log(data);
+
+  fft.forward(data);
+  const spectrum = fft.spectrum;
+  const sliceWidth = width / spectrum.length;
+  let x = 0;
+  // get max of spectrum data
+  console.log(data);
+  const maxS = Math.max(...spectrum);
+  for (let i = 0; i < spectrum.length; i++) {
+    const h = map(spectrum[i], 0, maxS, 0, height);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(x, height - h, sliceWidth, h);
+    x += sliceWidth;
+  }
+}
+
+
+hideSpectrogramBtn.addEventListener("click", (e) => {
+  if (hideSpectrogramBtn.checked) {
+    inputSpectrogram.classList.remove("hidden");
+    outputSpectrogram.classList.remove("hidden");
+  } else {
+    inputSpectrogram.classList.add("hidden");
+    outputSpectrogram.classList.add("hidden");
+  }
+});
+
+
 const dropdowns = document.querySelectorAll('[data-dropdown-toggle]');
 const collapses = document.querySelectorAll('[data-collapse-toggle]');
-
-
 
 dropdowns.forEach((dropdown) => {
   dropdown.addEventListener("click", function () {
