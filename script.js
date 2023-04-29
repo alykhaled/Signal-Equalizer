@@ -1,11 +1,11 @@
-// import { Chart } from 'chart.js'; 
+// import { Chart } from 'chart.js';
 
-const ctx = document.getElementById('inputChart');
-const ctx2 = document.getElementById('outputChart');
+const ctx = document.getElementById("inputChart");
+const ctx2 = document.getElementById("outputChart");
 const csvFile = document.getElementById("csv-file");
 
-const inputData = []
-const inputTime = []
+const inputData = [];
+const inputTime = [];
 const maxWidth = 500;
 const maxFrequency = 1000;
 
@@ -335,34 +335,39 @@ csvFile.addEventListener("change", function() {
 });
 
 const inputChart = new Chart(ctx, {
-  type: 'line',
+  type: "line",
   data: {
     labels: [],
-    datasets: [{
-      label: 'Signal',
-      data: [],
-      borderWidth: 1,
-      radius: 0,
-    }]
+    datasets: [
+      {
+        label: "Signal",
+        data: [],
+        borderWidth: 1,
+        radius: 0,
+      },
+    ],
   },
   options: {
     animation: false,
     scales: {
-      x:
-      {
-          max: maxWidth,
-          min: 0,
-
+      x: {
+        max: maxWidth,
+        min: 0,
       },
-      yAxes: [{
-        ticks: {
-          min: -1,
-          max: 1,
-          stepSize: 0.1
-        }
-      }]
-    }
-  }
+
+      yAxes: [
+        {
+          //make the y axis read the lowest value and maximum value of the imported data
+
+          ticks: {
+            min: 0,
+            max: 1,
+            stepSize: 0.1,
+          },
+        },
+      ],
+    },
+  },
 });
 
 const outputChart = new Chart(ctx2, {
@@ -383,8 +388,8 @@ const outputChart = new Chart(ctx2, {
       {
           max: maxWidth,
           min: 0,
-
       },
+
       yAxes: [{
         ticks: {
           min: -1,
@@ -396,28 +401,105 @@ const outputChart = new Chart(ctx2, {
   }
 });
 
+csvFile.addEventListener("change", function () {
+  console.log("file changed");
+  const file = csvFile.files[0];
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    const data = event.target.result;
+    const lines = data.split("\n");
+    inputChart.data.labels = [];
+    inputChart.data.datasets[0].data = [];
+    for (const line of lines) {
+      const values = line.split(",");
+      inputChart.data.labels.push(values[0]);
+      inputChart.data.datasets[0].data.push(values[1]);
+      inputTime.push(values[0]);
+      inputData.push(values[1]);
+    }
+
+    inputChart.update();
+  };
+
+  reader.readAsText(file);
+});
+
+
+
+const playButton = document.getElementById("play-button");
+const pauseButton = document.getElementById("pause-button");
+const stopButton = document.getElementById("stop-button");
+var isPlaying = false;
+var intervalId = null;
+var updateInterval = 100; // milliseconds
+var currentIndex = 0;
+
+playButton.addEventListener("click", (e) => {
+  if (!isPlaying) {
+    intervalId = setInterval(function () {
+      currentIndex = 0;
+      currentIndex++;
+      if (currentIndex >= inputChart.data.datasets[0].data.length) {
+        currentIndex = 0;
+      }
+      inputChart.data.datasets[0].data.shift();
+      inputChart.data.labels.shift();
+      inputChart.data.labels.push(inputTime[currentIndex]);
+      inputChart.data.datasets[0].data.push(inputData[currentIndex]);
+      inputChart.update();
+    }, updateInterval);
+
+    isPlaying = true;
+  }
+});
+
+//Pause Button
+pauseButton.addEventListener("click", () => {
+  clearInterval(intervalId);
+  isPlaying = false;
+});
+
+//Stop Button
+ stopButton.addEventListener("click", () => {
+   clearInterval(intervalId);
+   currentIndex = 0;
+   isPlaying = false;
+   inputChart.data.datasets[0].data = inputData.slice(0);
+   inputChart.data.labels = inputTime.slice(0);
+   inputChart.update();
+ });
+
+const speedSlider = document.getElementById("speed");
+const speedLabel = document.getElementById("speed-label");
+
+// Update the speed label's text when the slider value changes
+speedSlider.addEventListener("input", () => {
+ speedLabel.textContent = speedSlider.value;
+});
+
+
 
 function map(value, start1, stop1, start2, stop2) {
   return start2 + (stop2 - start2) * ((value - start1) / (stop1 - start1));
 }
 
-function drawSpectrogram(data,canvas) {
+function drawSpectrogram(data, canvas) {
   var width = canvas.width;
   var height = canvas.height;
   // canvas.width = width;
   // canvas.height = height;
-  var ctx = canvas.getContext('2d');
+  var ctx = canvas.getContext("2d");
   const gradient = ctx.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(1, '#0000ff');
-  gradient.addColorStop(0.5, '#00ffff');
-  gradient.addColorStop(0, '#ffffff');
+  gradient.addColorStop(1, "#0000ff");
+  gradient.addColorStop(0.5, "#00ffff");
+  gradient.addColorStop(0, "#ffffff");
   // fill the canvas with black
-  ctx.fillStyle = '#000000';
+  ctx.fillStyle = "#000000";
   ctx.fillRect(0, 0, width, height);
 
   const fftSize = 1024; // FFT size (power of 2)
   const binCount = 256; // number of frequency bins (half of FFT size)
-  
+
   const fft = new FFT(fftSize, 44100);
   // data = data.map((value) => {
   //     return map(value, -1, 1, 0, 255);
@@ -428,7 +510,7 @@ function drawSpectrogram(data,canvas) {
     return value.value;
   });
   while (data.length < fftSize) {
-      data.push(0);
+    data.push(0);
   }
   // if it is larger, then truncate it
   if (data.length > fftSize) {
@@ -449,42 +531,8 @@ function drawSpectrogram(data,canvas) {
     ctx.fillRect(x, height - h, sliceWidth, h);
     x += sliceWidth;
   }
-  
-
 }
 
-const playButton = document.getElementById("play-button");
-const pauseButton = document.getElementById("pause-button");
-const hideSpectrogramBtn = document.getElementById("spectrogramBtn"); //Checkbox for hiding spectrogram
-
-var isPlaying = false;
-var intervalId = null;
-var updateInterval = 50; // milliseconds
-
-playButton.addEventListener("click", (e) => {
-  if (isPlaying) {
-    clearInterval(intervalId);
-    isPlaying = false;
-    // change button text
-    e.target.textContent = "Play";
-  } else {
-    var currentIndex = 0;
-    intervalId = setInterval(function () {
-      currentIndex++;
-      if (currentIndex >= inputChart.data.datasets[0].data.length) {
-        currentIndex = 0;
-      }
-            inputChart.data.datasets[0].data.shift();
-            inputChart.data.labels.shift();
-            inputChart.data.labels.push(inputTime[currentIndex]);
-            inputChart.data.datasets[0].data.push(inputData[currentIndex]);
-            inputChart.update();
-        }, updateInterval);
-        isPlaying = true;
-        // change button text
-        e.target.textContent = "Pause";
-    }
-});
 
 hideSpectrogramBtn.addEventListener("click", (e) => {
   if (hideSpectrogramBtn.checked) {
@@ -500,21 +548,18 @@ hideSpectrogramBtn.addEventListener("click", (e) => {
 const dropdowns = document.querySelectorAll('[data-dropdown-toggle]');
 const collapses = document.querySelectorAll('[data-collapse-toggle]');
 
-
-
-dropdowns.forEach(dropdown => {
-    dropdown.addEventListener('click', function() {
-    const dropdownId = this.getAttribute('data-dropdown-toggle');
+dropdowns.forEach((dropdown) => {
+  dropdown.addEventListener("click", function () {
+    const dropdownId = this.getAttribute("data-dropdown-toggle");
     const dropdown = document.getElementById(dropdownId);
-    dropdown.classList.toggle('hidden');
-    });
+    dropdown.classList.toggle("hidden");
+  });
 });
 
-collapses.forEach(collapse => {
-    collapse.addEventListener('click', function() {
-    const collapseId = this.getAttribute('data-collapse-toggle');
+collapses.forEach((collapse) => {
+  collapse.addEventListener("click", function () {
+    const collapseId = this.getAttribute("data-collapse-toggle");
     const collapse = document.getElementById(collapseId);
-    collapse.classList.toggle('hidden');
-    });
+    collapse.classList.toggle("hidden");
+  });
 });
-
