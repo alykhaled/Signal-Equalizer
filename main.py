@@ -55,6 +55,9 @@ def equalize():
     gains = request.form.get('gains')[1:-1]
     # split by comma
     gains = gains.split(',')
+    # remove every "
+    gains = [gain.replace('"', '') for gain in gains]
+    print(gains)
     gains = [float(gain) for gain in gains]
     print(gains)
     # Apply equalization

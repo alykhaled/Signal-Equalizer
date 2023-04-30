@@ -24,8 +24,9 @@ var intervalId = null;
 var updateInterval = 5; // milliseconds
 var currentIndex = 0;
 
-const inputData = [];
-const inputTime = [];
+let audioFile = null;
+let inputData = [];
+let inputTime = [];
 let outputData = [];
 let outputTime = [];
 const maxWidth = 500;
@@ -126,18 +127,34 @@ class Equalizer {
   }
   equalize(sliders)
   {
-    const gains = [1, 0.5, 1.5, 0.8, 1];
+    const gains = [];
+    for (const slider of sliders) {
+      gains.push(slider.value);
+    }
 
-    const audioFFT = FFT.forward(this.inputData);
-    console.log(audioFFT);
-    const audioSpectrum = audioFFT.map((num) => Math.sqrt(num.re**2 + num.im**2));
-    const equalizedSpectrum = audioSpectrum.map((value, index) => value * gains[index]);
-    const equalizedFFT = equalizedSpectrum.map((value, index) => {
-      const angle = Math.atan2(audioFFT[index].im, audioFFT[index].re);
-      return { re: value * Math.cos(angle), im: value * Math.sin(angle) };
+    const formData = new FormData();
+    formData.append('file', audioFile);
+    formData.append('gains', JSON.stringify(gains));
+
+    // send audio file to server
+    fetch('http://127.0.0.1:5000/equalize', {
+      method: 'POST',
+      body: formData
+    }).then((response) => {
+      return response.json();
+    }).then((data) => {
+      this.outputTime = inputTime
+      this.outputData = [];
+      for (let i = 0; i < data.length; i++) {
+        this.outputData.push(data[i].toFixed(8));
+      }
+      outputChart.data.labels = this.outputTime;
+      outputChart.data.datasets[0].data = this.outputData;
+      console.log(this.outputData);
+      console.log(this.outputTime);
+
+      outputChart.update();
     });
-    const equalizedAudio = FFT.inverse(equalizedFFT);
-    console.log(equalizedAudio);
   }
 }
 
@@ -145,10 +162,13 @@ class UniformRangeEqulizer extends Equalizer {
   constructor(inputData, inputTime) {
     super(inputData, inputTime);
     this.sliders = []
+    this.addSliders();
+    this.initSliders();
+
   }
 
   initSliders() {
-    for (const slider of this.sliders) {
+    for (var slider of this.sliders) {
       console.log(slider);
       const sliderMainContainer = document.getElementById("sliders");
       const sliderContainer = document.createElement("div");
@@ -176,9 +196,9 @@ class UniformRangeEqulizer extends Equalizer {
       sliderElement.value = slider.value;
       sliderElement.addEventListener("input", () => {
         sliderValue.textContent = sliderElement.value;
-      
+        slider.value = sliderElement.value;
         this.updateSliders();
-        this.updateChart();
+        // this.updateChart();
       });
 
       
@@ -198,7 +218,7 @@ class UniformRangeEqulizer extends Equalizer {
         `uniform-range-slider-${i}`,
         i*frequencyStep,
         (i+1)*frequencyStep,
-        0,
+        1,
         -20,
         20,
         1
@@ -310,13 +330,10 @@ class VowelsEqulizer extends Equalizer{
 }
 
 const uniformRangeEqulizer = new UniformRangeEqulizer(inputData, inputTime);
-uniformRangeEqulizer.addSliders();
-uniformRangeEqulizer.initSliders();
 
 
 fileInput.addEventListener('change', async (event) => {
-  const file = event.target.files[0];
-  const gains = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
+  audioFile = event.target.files[0];
 
   var reader = new FileReader();
   reader.onload = function() {
@@ -333,34 +350,17 @@ fileInput.addEventListener('change', async (event) => {
         time.push((i / sampleRate).toFixed(4));
         data.push(rawData[i].toFixed(4));
       }
+      inputData = data;
+      inputTime = time;
       inputChart.data.labels = time;
       inputChart.data.datasets[0].data = data;
       inputChart.update();
 
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('gains', JSON.stringify(gains));
-
-      // send audio file to server
-      fetch('http://127.0.0.1:5000/equalize', {
-        method: 'POST',
-        body: formData
-      }).then((response) => {
-        return response.json();
-      }).then((data) => {
-        const outputTime = time
-        const outputData = [];
-        for (let i = 0; i < data.length; i++) {
-          outputData.push(data[i].toFixed(4));
-        }
-        outputChart.data.labels = outputTime;
-        outputChart.data.datasets[0].data = outputData;
-        outputChart.update();
-      });
+      
 
     });
   };
-  reader.readAsArrayBuffer(file);
+  reader.readAsArrayBuffer(audioFile);
 });
 
 playButton.addEventListener("click", (e) => {
