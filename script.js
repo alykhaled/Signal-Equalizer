@@ -152,8 +152,11 @@ class Equalizer {
       outputChart.data.datasets[0].data = this.outputData;
       console.log(this.outputData);
       console.log(this.outputTime);
+      outputData = this.outputData;
+      outputTime = this.outputTime;
 
       outputChart.update();
+      
     });
   }
 }
@@ -240,13 +243,13 @@ class UniformRangeEqulizer extends Equalizer {
   }
   
   updateSpectrogram() {
-    outputChart.data.labels = this.outputTime;
-    outputChart.data.datasets[0].data = this.outputData;
-    outputChart.update();
+    drawSpectrogram(outputData,outputSpectrogram);
   }
 
   equalize() {
     super.equalize(this.sliders);
+    console.log(this.outputData);
+    this.updateSpectrogram();
   }
 }
 
@@ -336,10 +339,10 @@ fileInput.addEventListener('change', async (event) => {
   audioFile = event.target.files[0];
 
   var reader = new FileReader();
-  reader.onload = function() {
+  reader.onload =  function() {
     // plot audio file in input chart
     const audioContext = new AudioContext();
-    audioContext.decodeAudioData(reader.result).then((buffer) => {
+    audioContext.decodeAudioData(reader.result).then(async (buffer) => {
       const rawData = buffer.getChannelData(0);
       const sampleRate = buffer.sampleRate;
       const duration = buffer.duration;
@@ -354,8 +357,9 @@ fileInput.addEventListener('change', async (event) => {
       inputTime = time;
       inputChart.data.labels = time;
       inputChart.data.datasets[0].data = data;
+      console.log(data);
       inputChart.update();
-
+      drawSpectrogram(data,inputSpectrogram);
       
 
     });
@@ -423,11 +427,11 @@ async function drawSpectrogram(data, canvas) {
   // response is image so take it and view it
   data = data.map((d) => {
     // Remove NaN values
-    if (isNaN(d.value)) {
+    if (isNaN(d)) {
       return 0;
     }
 
-    return d.value;
+    return d;
   });
   const url = "http://127.0.0.1:5000/spectrogram";
   const options = {
