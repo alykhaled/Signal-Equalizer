@@ -6,6 +6,8 @@ const csvFile = document.getElementById("csv-file");
 
 const inputData = [];
 const inputTime = [];
+let outputData = [];
+let outputTime = [];
 const maxWidth = 500;
 const maxFrequency = 1000;
 
@@ -42,6 +44,7 @@ class UniformRangeEqulizer extends Equalizer {
 
   initSliders() {
     for (const slider of this.sliders) {
+      console.log(slider);
       const sliderMainContainer = document.getElementById("sliders");
       const sliderContainer = document.createElement("div");
       sliderContainer.classList.add("slider");
@@ -182,15 +185,16 @@ class UniformRangeEqulizer extends Equalizer {
     }
 
     this.outputData = ifftData;
-    console.log(this.outputData);
+    outputData = this.outputData;
+
     this.outputTime = this.inputTime;
-    // console.log(this.outputData);
+    outputTime = this.outputTime;
+
     outputChart.data.labels = this.outputTime;
     outputChart.data.datasets[0].data = this.outputData;
+    console.log(Array.from(this.outputData));
     outputChart.update();
     this.updateSpectrogram();
-    // Update the sliders
-
 
   }
 }
@@ -301,7 +305,7 @@ csvFile.addEventListener("change", function() {
   console.log("file changed");
   const file = csvFile.files[0];
   const reader = new FileReader();
-  reader.onload = (event) => {
+  reader.onload = async (event) => {
       const data = event.target.result;
       const lines = data.split("\n");
       let samples = [];
@@ -401,37 +405,15 @@ const outputChart = new Chart(ctx2, {
   }
 });
 
-csvFile.addEventListener("change", function () {
-  console.log("file changed");
-  const file = csvFile.files[0];
-  const reader = new FileReader();
-  reader.onload = (event) => {
-    const data = event.target.result;
-    const lines = data.split("\n");
-    inputChart.data.labels = [];
-    inputChart.data.datasets[0].data = [];
-    for (const line of lines) {
-      const values = line.split(",");
-      inputChart.data.labels.push(values[0]);
-      inputChart.data.datasets[0].data.push(values[1]);
-      inputTime.push(values[0]);
-      inputData.push(values[1]);
-    }
-
-    inputChart.update();
-  };
-
-  reader.readAsText(file);
-});
-
-
 
 const playButton = document.getElementById("play-button");
 const pauseButton = document.getElementById("pause-button");
 const stopButton = document.getElementById("stop-button");
+const hideSpectrogramBtn = document.getElementById("spectrogramBtn"); //Checkbox for hiding spectrogram
+
 var isPlaying = false;
 var intervalId = null;
-var updateInterval = 100; // milliseconds
+var updateInterval = 5; // milliseconds
 var currentIndex = 0;
 
 playButton.addEventListener("click", (e) => {
@@ -447,6 +429,13 @@ playButton.addEventListener("click", (e) => {
       inputChart.data.labels.push(inputTime[currentIndex]);
       inputChart.data.datasets[0].data.push(inputData[currentIndex]);
       inputChart.update();
+
+      outputChart.data.datasets[0].data.shift();
+      outputChart.data.labels.shift();
+      outputChart.data.labels.push(outputTime[currentIndex]);
+      outputChart.data.datasets[0].data.push(outputData[currentIndex]);
+      outputChart.update();
+
     }, updateInterval);
 
     isPlaying = true;
@@ -460,14 +449,18 @@ pauseButton.addEventListener("click", () => {
 });
 
 //Stop Button
- stopButton.addEventListener("click", () => {
-   clearInterval(intervalId);
-   currentIndex = 0;
-   isPlaying = false;
-   inputChart.data.datasets[0].data = inputData.slice(0);
-   inputChart.data.labels = inputTime.slice(0);
-   inputChart.update();
- });
+stopButton.addEventListener("click", () => {
+  clearInterval(intervalId);
+  currentIndex = 0;
+  isPlaying = false;
+  inputChart.data.datasets[0].data = inputData.slice(0);
+  inputChart.data.labels = inputTime.slice(0);
+  inputChart.update();
+
+  outputChart.data.datasets[0].data = outputData.slice(0);
+  outputChart.data.labels = outputTime.slice(0);
+  outputChart.update();
+});
 
 const speedSlider = document.getElementById("speed");
 const speedLabel = document.getElementById("speed-label");
@@ -483,55 +476,85 @@ function map(value, start1, stop1, start2, stop2) {
   return start2 + (stop2 - start2) * ((value - start1) / (stop1 - start1));
 }
 
-function drawSpectrogram(data, canvas) {
-  var width = canvas.width;
-  var height = canvas.height;
-  // canvas.width = width;
-  // canvas.height = height;
-  var ctx = canvas.getContext("2d");
-  const gradient = ctx.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(1, "#0000ff");
-  gradient.addColorStop(0.5, "#00ffff");
-  gradient.addColorStop(0, "#ffffff");
-  // fill the canvas with black
-  ctx.fillStyle = "#000000";
-  ctx.fillRect(0, 0, width, height);
-
-  const fftSize = 1024; // FFT size (power of 2)
-  const binCount = 256; // number of frequency bins (half of FFT size)
-
-  const fft = new FFT(fftSize, 44100);
-  // data = data.map((value) => {
-  //     return map(value, -1, 1, 0, 255);
-  // });
-  // Make sure the data array is the same size as the FFT size.
-  // If it is smaller, then zero-pad it.
-  data = data.map((value) => {
-    return value.value;
+async function drawSpectrogram(data, canvas) {
+  // make post request to server
+  // response is image so take it and view it
+  data = data.map((d) => {
+    return d.value;
   });
-  while (data.length < fftSize) {
-    data.push(0);
-  }
-  // if it is larger, then truncate it
-  if (data.length > fftSize) {
-      data = data.slice(0, fftSize);
-  }
+  const url = "http://127.0.0.1:5000/spectrogram";
+  const options = {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: `{"data": [${data}]}`
+  };
+  fetch(url, options)
+  .then(function(response) {
+    return response.blob();
+  })
+  .then(function(blob) {
+    var url = URL.createObjectURL(blob);
+    var img = new Image();
+    img.onload = function() {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      // Add padding to the canvas
+      canvas.height += 20;
+      canvas.getContext('2d').drawImage(img, 0, 0);
 
-  
+    };
+    img.src = url;
+  });
 
-  fft.forward(data);
-  const spectrum = fft.spectrum;
-  const sliceWidth = width / spectrum.length;
-  let x = 0;
-  // get max of spectrum data
-  const maxS = Math.max(...spectrum);
-  for (let i = 0; i < spectrum.length; i++) {
-    const h = map(spectrum[i], 0, maxS, 0, height);
-    ctx.fillStyle = gradient;
-    ctx.fillRect(x, height - h, sliceWidth, h);
-    x += sliceWidth;
-  }
 }
+// function drawSpectrogram(data, canvas) {
+//   var width = canvas.width;
+//   var height = canvas.height;
+//   // canvas.width = width;
+//   // canvas.height = height;
+//   var ctx = canvas.getContext("2d");
+//   const gradient = ctx.createLinearGradient(0, 0, 0, height);
+//   gradient.addColorStop(1, "#0000ff");
+//   gradient.addColorStop(0.5, "#00ffff");
+//   gradient.addColorStop(0, "#ffffff");
+//   // fill the canvas with black
+//   ctx.fillStyle = "#000000";
+//   ctx.fillRect(0, 0, width, height);
+
+//   const fftSize = 1024; // FFT size (power of 2)
+//   const binCount = 256; // number of frequency bins (half of FFT size)
+
+//   const fft = new FFT(fftSize, 44100);
+//   // data = data.map((value) => {
+//   //     return map(value, -1, 1, 0, 255);
+//   // });
+//   // Make sure the data array is the same size as the FFT size.
+//   // If it is smaller, then zero-pad it.
+//   data = data.map((value) => {
+//     return value.value;
+//   });
+//   while (data.length < fftSize) {
+//     data.push(0);
+//   }
+//   // if it is larger, then truncate it
+//   if (data.length > fftSize) {
+//       data = data.slice(0, fftSize);
+//   }
+//   fft.forward(data);
+//   const spectrum = fft.spectrum;
+//   const sliceWidth = width / spectrum.length;
+//   let x = 0;
+//   // get max of spectrum data
+//   const maxS = Math.max(...spectrum);
+//   for (let i = 0; i < spectrum.length; i++) {
+//     const h = map(spectrum[i], 0, maxS, 0, height);
+//     ctx.fillStyle = gradient;
+//     ctx.fillRect(x, height - h, sliceWidth, h);
+//     x += sliceWidth;
+//   }
+// }
 
 
 hideSpectrogramBtn.addEventListener("click", (e) => {
