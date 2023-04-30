@@ -1,8 +1,28 @@
-// import { Chart } from 'chart.js';
-
 const ctx = document.getElementById("inputChart");
 const ctx2 = document.getElementById("outputChart");
-const csvFile = document.getElementById("csv-file");
+const fileInput = document.getElementById("csv-file");
+const inputSpectrogram = document.getElementById("inputSpectrogram");
+const outputSpectrogram = document.getElementById("outputSpectrogram");
+const inputCtx = inputSpectrogram.getContext("2d");
+const outputCtx = outputSpectrogram.getContext("2d");
+const playButton = document.getElementById("play-button");
+const pauseButton = document.getElementById("pause-button");
+const stopButton = document.getElementById("stop-button");
+const hideSpectrogramBtn = document.getElementById("spectrogramBtn"); //Checkbox for hiding spectrogram
+const speedSlider = document.getElementById("speed");
+const speedLabel = document.getElementById("speed-label");
+const dropdowns = document.querySelectorAll('[data-dropdown-toggle]');
+const collapses = document.querySelectorAll('[data-collapse-toggle]');
+
+inputCtx.fillStyle = '#000000';
+inputCtx.fillRect(0, 0, inputSpectrogram.width, inputSpectrogram.height);
+outputCtx.fillStyle = '#000000';
+outputCtx.fillRect(0, 0, outputSpectrogram.width, outputSpectrogram.height);
+
+var isPlaying = false;
+var intervalId = null;
+var updateInterval = 5; // milliseconds
+var currentIndex = 0;
 
 const inputData = [];
 const inputTime = [];
@@ -10,6 +30,76 @@ let outputData = [];
 let outputTime = [];
 const maxWidth = 500;
 const maxFrequency = 1000;
+
+const inputChart = new Chart(ctx, {
+  type: "line",
+  data: {
+    labels: [],
+    datasets: [
+      {
+        label: "Signal",
+        data: [],
+        borderWidth: 1,
+        radius: 0,
+      },
+    ],
+  },
+  options: {
+    animation: false,
+    scales: {
+      x: {
+        max: maxWidth,
+        min: 0,
+      },
+
+      yAxes: [
+        {
+          //make the y axis read the lowest value and maximum value of the imported data
+
+          ticks: {
+            min: 0,
+            max: 1,
+            stepSize: 0.1,
+          },
+        },
+      ],
+    },
+  },
+});
+
+const outputChart = new Chart(ctx2, {
+  type: 'line',
+  data: {
+    labels: [],
+    datasets: [{
+      label: 'Signal',
+      data: [],
+      borderWidth: 1,
+      radius: 0,
+    }]
+  },
+  options: {
+    animation: false,
+    scales: {
+      x:
+      {
+          max: maxWidth,
+          min: 0,
+      },
+
+      yAxes: [{
+        ticks: {
+          min: -1,
+          max: 1,
+          stepSize: 0.1
+        }
+      }]
+    }
+  }
+});
+
+/////////////////////////////////////////////////////////////////////////////////////
+
 
 class Slider {
   constructor(id, frequencyMin, frequencyMax, value, min, max, step) {
@@ -33,6 +123,21 @@ class Equalizer {
     this.outputTime = [];
     this.maxWidth = 500;
     this.maxFrequency = 1000;
+  }
+  equalize(sliders)
+  {
+    const gains = [1, 0.5, 1.5, 0.8, 1];
+
+    const audioFFT = FFT.forward(this.inputData);
+    console.log(audioFFT);
+    const audioSpectrum = audioFFT.map((num) => Math.sqrt(num.re**2 + num.im**2));
+    const equalizedSpectrum = audioSpectrum.map((value, index) => value * gains[index]);
+    const equalizedFFT = equalizedSpectrum.map((value, index) => {
+      const angle = Math.atan2(audioFFT[index].im, audioFFT[index].re);
+      return { re: value * Math.cos(angle), im: value * Math.sin(angle) };
+    });
+    const equalizedAudio = FFT.inverse(equalizedFFT);
+    console.log(equalizedAudio);
   }
 }
 
@@ -111,91 +216,17 @@ class UniformRangeEqulizer extends Equalizer {
   }
 
   updateChart() {
-    const uniformRange = [];
-    for (const slider of this.sliders) {
-      uniformRange.push(slider.value);
-    }
-    this.outputData = this.inputData.map((value, index) => {
-      return value * uniformRange[index % uniformRange.length];
-    });
-    this.outputTime = this.inputTime;
+    
+  }
+  
+  updateSpectrogram() {
     outputChart.data.labels = this.outputTime;
     outputChart.data.datasets[0].data = this.outputData;
     outputChart.update();
   }
-
-  updateSpectrogram() {
-    const outputSpectrogram = document.getElementById("outputSpectrogram");
-    drawSpectrogram(this.outputData, outputSpectrogram);
-  }
-
 
   equalize() {
-    
-    const fftSize = 2 ** Math.ceil(Math.log2(this.inputData.length));
-    // Compute sample rate
-    const sampleRate = this.inputData.length / this.inputTime[this.inputData.length - 1];
-    
-    const fft = new FFT(fftSize, sampleRate);
-    const mag = new Float32Array(fftSize / 2);
-    // Make sure the inputData array is the same size as the FFT size.
-    // If it's smaller, pad it with zeros.
-    if (this.inputData.length < fftSize) {
-      const newData = new Float32Array(fftSize);
-      newData.set(this.inputData);
-      this.inputData = newData;
-    }
-
-    fft.forward(this.inputData, mag);
-    
-    const magRanges = new Float32Array(this.sliders.length);
-    for (let i = 0; i < this.sliders.length; i++) {
-      const slider = this.sliders[i];
-      const start = Math.floor(slider.frequencyMin / sampleRate * fftSize);
-      const end = Math.floor(slider.frequencyMax / sampleRate * fftSize);
-      let sum = 0;
-      for (let j = start; j < end; j++) {
-        sum += mag[j];
-      }
-      magRanges[i] = sum / (end - start);
-    }
-
-    // Apply the gains or attenuations set by the user on each slider
-    for (let i = 0; i < this.sliders.length; i++) {
-      const slider = this.sliders[i];
-      const gain = Math.pow(10, slider.value / 20);
-      const start = Math.floor(slider.frequencyMin / sampleRate * fftSize);
-      const end = Math.floor(slider.frequencyMax / sampleRate * fftSize);
-      for (let j = start; j < end; j++) {
-        mag[j] *= gain;
-      }
-    }
-
-    // Inverse FFT
-    const ifft = new FFT(fftSize, sampleRate);
-    const ifftData = new Float32Array(fftSize);
-    ifft.inverse(mag, ifftData);
-
-    // Normalize the output
-    const max = Math.max(...ifftData);
-    const min = Math.min(...ifftData);
-    const range = max - min;
-    for (let i = 0; i < ifftData.length; i++) {
-      ifftData[i] = (ifftData[i] - min) / range;
-    }
-
-    this.outputData = ifftData;
-    outputData = this.outputData;
-
-    this.outputTime = this.inputTime;
-    outputTime = this.outputTime;
-
-    outputChart.data.labels = this.outputTime;
-    outputChart.data.datasets[0].data = this.outputData;
-    console.log(Array.from(this.outputData));
-    outputChart.update();
-    this.updateSpectrogram();
-
+    super.equalize(this.sliders);
   }
 }
 
@@ -274,147 +305,63 @@ class VowelsEqulizer extends Equalizer{
   }
 
   updateChart() {
-    const vowels = [];
-    for (const slider of this.sliders) {
-      vowels.push(slider.value);
-    }
-    this.outputData = this.inputData.map((value, index) => {
-      return value * vowels[index % vowels.length];
-    });
-    this.outputTime = this.inputTime;
-    outputChart.data.labels = this.outputTime;
-    outputChart.data.datasets[0].data = this.outputData;
-    outputChart.update();
+
   }
 }
 
 const uniformRangeEqulizer = new UniformRangeEqulizer(inputData, inputTime);
 uniformRangeEqulizer.addSliders();
 uniformRangeEqulizer.initSliders();
-const inputSpectrogram = document.getElementById("inputSpectrogram");
-const outputSpectrogram = document.getElementById("outputSpectrogram");
-const inputCtx = inputSpectrogram.getContext("2d");
-const outputCtx = outputSpectrogram.getContext("2d");
 
 
-inputCtx.fillStyle = '#000000';
-inputCtx.fillRect(0, 0, inputSpectrogram.width, inputSpectrogram.height);
-outputCtx.fillStyle = '#000000';
-outputCtx.fillRect(0, 0, outputSpectrogram.width, outputSpectrogram.height);
-csvFile.addEventListener("change", function() {
-  console.log("file changed");
-  const file = csvFile.files[0];
-  const reader = new FileReader();
-  reader.onload = async (event) => {
-      const data = event.target.result;
-      const lines = data.split("\n");
-      let samples = [];
-      inputChart.data.labels = [];
-      inputChart.data.datasets[0].data = [];
-      for (const line of lines) {
-          const values = line.split(",");
-          const time = parseFloat(values[0]).toFixed(3);
-          const value = parseFloat(values[1]).toFixed(8);
-          inputTime.push(time);
-          inputChart.data.labels.push(time);
-          inputChart.data.datasets[0].data.push(value);
-          // adjust time floating point to 3 decimal places
-          inputData.push(value);
-          const dataa = {
-            time: time,
-            value: value
-          };
-          samples.push(dataa);
+fileInput.addEventListener('change', async (event) => {
+  const file = event.target.files[0];
+  const gains = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
 
+  var reader = new FileReader();
+  reader.onload = function() {
+    // plot audio file in input chart
+    const audioContext = new AudioContext();
+    audioContext.decodeAudioData(reader.result).then((buffer) => {
+      const rawData = buffer.getChannelData(0);
+      const sampleRate = buffer.sampleRate;
+      const duration = buffer.duration;
+      const time = [];
+      const data = [];
+      for (let i = 0; i < rawData.length; i++) {
+        // flotation point precision
+        time.push((i / sampleRate).toFixed(4));
+        data.push(rawData[i].toFixed(4));
       }
-      // Remove the first element
-      samples.shift();
-
-      drawSpectrogram(samples, inputSpectrogram);
-      drawSpectrogram(samples, outputSpectrogram);
+      inputChart.data.labels = time;
+      inputChart.data.datasets[0].data = data;
       inputChart.update();
-  };
 
-  reader.readAsText(file);
-});
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('gains', JSON.stringify(gains));
 
-const inputChart = new Chart(ctx, {
-  type: "line",
-  data: {
-    labels: [],
-    datasets: [
-      {
-        label: "Signal",
-        data: [],
-        borderWidth: 1,
-        radius: 0,
-      },
-    ],
-  },
-  options: {
-    animation: false,
-    scales: {
-      x: {
-        max: maxWidth,
-        min: 0,
-      },
-
-      yAxes: [
-        {
-          //make the y axis read the lowest value and maximum value of the imported data
-
-          ticks: {
-            min: 0,
-            max: 1,
-            stepSize: 0.1,
-          },
-        },
-      ],
-    },
-  },
-});
-
-const outputChart = new Chart(ctx2, {
-  type: 'line',
-  data: {
-    labels: [],
-    datasets: [{
-      label: 'Signal',
-      data: [],
-      borderWidth: 1,
-      radius: 0,
-    }]
-  },
-  options: {
-    animation: false,
-    scales: {
-      x:
-      {
-          max: maxWidth,
-          min: 0,
-      },
-
-      yAxes: [{
-        ticks: {
-          min: -1,
-          max: 1,
-          stepSize: 0.1
+      // send audio file to server
+      fetch('http://127.0.0.1:5000/equalize', {
+        method: 'POST',
+        body: formData
+      }).then((response) => {
+        return response.json();
+      }).then((data) => {
+        const outputTime = time
+        const outputData = [];
+        for (let i = 0; i < data.length; i++) {
+          outputData.push(data[i].toFixed(4));
         }
-      }]
-    }
-  }
+        outputChart.data.labels = outputTime;
+        outputChart.data.datasets[0].data = outputData;
+        outputChart.update();
+      });
+
+    });
+  };
+  reader.readAsArrayBuffer(file);
 });
-
-
-const playButton = document.getElementById("play-button");
-const pauseButton = document.getElementById("pause-button");
-const stopButton = document.getElementById("stop-button");
-const hideSpectrogramBtn = document.getElementById("spectrogramBtn"); //Checkbox for hiding spectrogram
-
-var isPlaying = false;
-var intervalId = null;
-var updateInterval = 5; // milliseconds
-var currentIndex = 0;
 
 playButton.addEventListener("click", (e) => {
   if (!isPlaying) {
@@ -462,15 +409,10 @@ stopButton.addEventListener("click", () => {
   outputChart.update();
 });
 
-const speedSlider = document.getElementById("speed");
-const speedLabel = document.getElementById("speed-label");
-
 // Update the speed label's text when the slider value changes
 speedSlider.addEventListener("input", () => {
  speedLabel.textContent = speedSlider.value;
 });
-
-
 
 function map(value, start1, stop1, start2, stop2) {
   return start2 + (stop2 - start2) * ((value - start1) / (stop1 - start1));
@@ -480,6 +422,11 @@ async function drawSpectrogram(data, canvas) {
   // make post request to server
   // response is image so take it and view it
   data = data.map((d) => {
+    // Remove NaN values
+    if (isNaN(d.value)) {
+      return 0;
+    }
+
     return d.value;
   });
   const url = "http://127.0.0.1:5000/spectrogram";
@@ -566,10 +513,6 @@ hideSpectrogramBtn.addEventListener("click", (e) => {
     outputSpectrogram.classList.add("hidden");
   }
 });
-
-
-const dropdowns = document.querySelectorAll('[data-dropdown-toggle]');
-const collapses = document.querySelectorAll('[data-collapse-toggle]');
 
 dropdowns.forEach((dropdown) => {
   dropdown.addEventListener("click", function () {
