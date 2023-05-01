@@ -1,18 +1,18 @@
-const ctx = document.getElementById("inputChart");
-const ctx2 = document.getElementById("outputChart");
-const fileInput = document.getElementById("csv-file");
-const inputSpectrogram = document.getElementById("inputSpectrogram");
-const outputSpectrogram = document.getElementById("outputSpectrogram");
-const inputCtx = inputSpectrogram.getContext("2d");
-const outputCtx = outputSpectrogram.getContext("2d");
-const playButton = document.getElementById("play-button");
-const pauseButton = document.getElementById("pause-button");
-const stopButton = document.getElementById("stop-button");
-const hideSpectrogramBtn = document.getElementById("spectrogramBtn"); //Checkbox for hiding spectrogram
-const speedSlider = document.getElementById("speed");
-const speedLabel = document.getElementById("speed-label");
-const dropdowns = document.querySelectorAll('[data-dropdown-toggle]');
-const collapses = document.querySelectorAll('[data-collapse-toggle]');
+const ctx                 = document.getElementById("inputChart");
+const ctx2                = document.getElementById("outputChart");
+const fileInput           = document.getElementById("csv-file");
+const inputSpectrogram    = document.getElementById("inputSpectrogram");
+const outputSpectrogram   = document.getElementById("outputSpectrogram");
+const playButton          = document.getElementById("play-button");
+const pauseButton         = document.getElementById("pause-button");
+const stopButton          = document.getElementById("stop-button");
+const hideSpectrogramBtn  = document.getElementById("spectrogramBtn"); //Checkbox for hiding spectrogram
+const speedSlider         = document.getElementById("speed");
+const speedLabel          = document.getElementById("speed-label");
+const dropdowns           = document.querySelectorAll('[data-dropdown-toggle]');
+const collapses           = document.querySelectorAll('[data-collapse-toggle]');
+const inputCtx            = inputSpectrogram.getContext("2d");
+const outputCtx           = outputSpectrogram.getContext("2d");
 
 inputCtx.fillStyle = '#000000';
 inputCtx.fillRect(0, 0, inputSpectrogram.width, inputSpectrogram.height);
@@ -29,7 +29,7 @@ let inputData = [];
 let inputTime = [];
 let outputData = [];
 let outputTime = [];
-const maxWidth = 500;
+const maxWidth = 2000;
 const maxFrequency = 1000;
 
 const inputChart = new Chart(ctx, {
@@ -52,18 +52,6 @@ const inputChart = new Chart(ctx, {
         max: maxWidth,
         min: 0,
       },
-
-      yAxes: [
-        {
-          //make the y axis read the lowest value and maximum value of the imported data
-
-          ticks: {
-            min: 0,
-            max: 1,
-            stepSize: 0.1,
-          },
-        },
-      ],
     },
   },
 });
@@ -105,8 +93,8 @@ const outputChart = new Chart(ctx2, {
 class Slider {
   constructor(id, frequencyMin, frequencyMax, value, min, max, step) {
     this.id = id;
-    this.frequencyMin = 0;
-    this.frequencyMax = 0;
+    this.frequencyMin = frequencyMin;
+    this.frequencyMax = frequencyMax;
     this.value = value;
     this.min = min;
     this.max = max;
@@ -122,20 +110,23 @@ class Equalizer {
     this.inputTime = inputTime;
     this.outputData = [];
     this.outputTime = [];
-    this.maxWidth = 500;
+    this.maxWidth = 1500;
     this.maxFrequency = 1000;
   }
-  equalize(sliders)
+  equalize()
   {
     const gains = [];
-    for (const slider of sliders) {
-      gains.push(slider.value);
+    const freqRanges = [];
+    for (const slider of this.sliders) {
+      // convert slider value to float
+      gains.push(parseFloat(slider.value));
+      freqRanges.push([slider.frequencyMin, slider.frequencyMax]);
     }
 
     const formData = new FormData();
     formData.append('file', audioFile);
     formData.append('gains', JSON.stringify(gains));
-
+    formData.append('freqRanges', JSON.stringify(freqRanges));
     // send audio file to server
     fetch('http://127.0.0.1:5000/equalize', {
       method: 'POST',
@@ -159,12 +150,41 @@ class Equalizer {
       
     });
   }
+  read() {
+    const gains = [];
+    const freqRanges = [];
+
+    const formData = new FormData();
+    formData.append('file', audioFile);
+    formData.append('gains', JSON.stringify(gains));
+    formData.append('freqRanges', JSON.stringify(freqRanges));
+    // send audio file to server
+    fetch('http://127.0.0.1:5000/equalize', {
+      method: 'POST',
+      body: formData
+    }).then((response) => {
+      return response.json();
+    }).then((data) => {
+      inputData = [];
+      for (let i = 0; i < data.length; i++) {
+        // inputTime.push(data[i].toFixed(8));
+        inputData.push(data[i].toFixed(8));
+      }
+      inputChart.data.labels = inputTime;
+      inputChart.data.datasets[0].data = inputData;
+      console.log(inputData);
+      console.log(inputTime);
+      inputChart.update();
+      drawSpectrogram(inputData,inputSpectrogram);
+
+    });
+  }
+
 }
 
 class UniformRangeEqulizer extends Equalizer {
   constructor(inputData, inputTime) {
     super(inputData, inputTime);
-    this.sliders = []
     this.addSliders();
     this.initSliders();
 
@@ -226,6 +246,7 @@ class UniformRangeEqulizer extends Equalizer {
         20,
         1
       );
+      console.log(frequencyStep);
       this.sliders.push(slider);
     }
   }
@@ -345,22 +366,14 @@ fileInput.addEventListener('change', async (event) => {
     audioContext.decodeAudioData(reader.result).then(async (buffer) => {
       const rawData = buffer.getChannelData(0);
       const sampleRate = buffer.sampleRate;
-      const duration = buffer.duration;
       const time = [];
-      const data = [];
       for (let i = 0; i < rawData.length; i++) {
         // flotation point precision
-        time.push((i / sampleRate).toFixed(4));
-        data.push(rawData[i].toFixed(4));
+        time.push((i/sampleRate).toFixed(4));
       }
-      inputData = data;
       inputTime = time;
-      inputChart.data.labels = time;
-      inputChart.data.datasets[0].data = data;
-      console.log(data);
-      inputChart.update();
-      drawSpectrogram(data,inputSpectrogram);
-      
+      uniformRangeEqulizer.read();
+      uniformRangeEqulizer.equalize();
 
     });
   };

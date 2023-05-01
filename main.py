@@ -17,6 +17,7 @@ app.config['CORS_HEADERS'] = 'Content-Type'
 def spectrogram():
     # Get data from request body as json
     data = request.get_json()['data']
+    # sample_rate = request.get_json()['sample_rate']
     # Create spectrogram image
     pylab.rcParams['axes.facecolor'] = 'black'
     pylab.rc('axes', edgecolor='w')
@@ -42,32 +43,47 @@ def spectrogram():
 def equalize():
     # Get audio file from request body
     audio_file = request.files.get('file')
+    gains = request.form.get('gains')
+    gains = json.loads(gains)
+    
+    print(gains)
+    # freq_ranges = [[0, 100], [100, 500], [500, 1000], [1000, 5000], [5000, 10000], [10000, 22050]]
+    # get the freq_ranges and convert to json
+    freq_ranges = request.form.get('freqRanges')
+    # convert to list
+    print(freq_ranges)
+    freq_ranges = json.loads(freq_ranges)
+    freq_ranges = [[float(freq_range[0]), float(freq_range[1])] for freq_range in freq_ranges]
+    print(freq_ranges)
     if not audio_file:
         return Response('No file provided', status=400)
 
     # Load audio data using librosa
-    audio_data, sample_rate = librosa.load(audio_file)
+    y, sr = librosa.load(audio_file)
 
-    # Calculate frequency ranges and gains
-    freq_ranges = np.linspace(0, sample_rate / 2, num=11)
-    # get gains from request body form data as gain = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-    # remove first [ and last ]
-    gains = request.form.get('gains')[1:-1]
-    # split by comma
-    gains = gains.split(',')
-    # remove every "
-    gains = [gain.replace('"', '') for gain in gains]
-    print(gains)
-    gains = [float(gain) for gain in gains]
-    print(gains)
-    # Apply equalization
-    eq_data = np.zeros_like(audio_data)
-    for i in range(10):
-        start_idx = int(freq_ranges[i] / sample_rate * len(audio_data))
-        end_idx = int(freq_ranges[i+1] / sample_rate * len(audio_data))
-        print(start_idx, end_idx)
-        eq_data[start_idx:end_idx] = audio_data[start_idx:end_idx] * gains[i]
+    # Compute the FFT of the audio signal
+    y_fft = np.fft.fft(y)
 
-    # Return equalized data as json
-    return Response(json.dumps(eq_data.tolist()), mimetype='application/json')
+    # Get the magnitude and phase spectra
+    mag = np.abs(y_fft)
+    phase = np.angle(y_fft)
+
+    # Modify the magnitude spectrum based on the desired gain for each range
+    freqs = np.fft.fftfreq(len(y), 1/sr)
+    for freq_range, gain in zip(freq_ranges, gains):
+        idx_start = np.abs(freqs - freq_range[0]).argmin()
+        idx_stop = np.abs(freqs - freq_range[1]).argmin()
+        mag[idx_start:idx_stop] *= gain
+
+    # Reconstruct the FFT from the modified magnitude and phase spectra
+    y_fft_eq = mag * np.exp(1j*phase)
+
+    # Inverse transform the FFT back to the time domain
+    y_eq = np.fft.ifft(y_fft_eq).real
+
+    # Write the equalized audio data to a file
+    # librosa.output.write_wav('equalized_audio.wav', y_eq, sr=sr)
+
+    # return y_eq
+    return Response(json.dumps(y_eq.tolist()), mimetype='application/json')
 
