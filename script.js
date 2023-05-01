@@ -195,6 +195,7 @@ class Equalizer {
       outputTime = this.outputTime;
 
       outputChart.update();
+      this.updateSpectrogram();
       
     });
   }
@@ -238,7 +239,6 @@ class UniformRangeEqualizer extends Equalizer {
     this.initSliders();
 
   }
-
   addSliders() {
     const frequencyStep = this.maxFrequency / 10;
     for (let i = 0; i < 10; i++) {
@@ -255,11 +255,6 @@ class UniformRangeEqualizer extends Equalizer {
       this.sliders.push(slider);
     }
   }
-
-  equalize() {
-    super.equalize(this.sliders);
-    this.updateSpectrogram();
-  }
 }
 
 class VowelsEqualizer extends Equalizer{
@@ -267,50 +262,6 @@ class VowelsEqualizer extends Equalizer{
     super(inputData, inputTime);
     this.addSliders();
     this.initSliders();
-  }
-
-  initSliders() {
-    for (var slider of this.sliders) {
-      console.log(slider);
-      const sliderMainContainer = document.getElementById("sliders");
-      const sliderContainer = document.createElement("div");
-      sliderContainer.classList.add("slider");
-
-      const sliderElement = document.createElement("input");
-      const sliderLabel = document.createElement("p");
-      sliderLabel.textContent = slider.name;
-
-      const sliderValue = document.createElement("p");
-      sliderValue.textContent = slider.value;
-
-      const sliderMax = document.createElement("p");
-      sliderMax.textContent = slider.max;
-
-      const sliderMin = document.createElement("p");
-      sliderMin.textContent = slider.min;
-
-      sliderElement.classList.add("slide");
-      sliderElement.type = "range";
-      sliderElement.id = slider.id;
-      sliderElement.min = slider.min;
-      sliderElement.max = slider.max;
-      sliderElement.step = slider.step;
-      sliderElement.value = slider.value;
-      sliderElement.addEventListener("input", () => {
-        sliderValue.textContent = sliderElement.value;
-        slider.value = sliderElement.value;
-        this.updateSliders();
-        // this.updateChart();
-      });
-
-      
-      sliderContainer.appendChild(sliderValue);
-      sliderContainer.appendChild(sliderMax);
-      sliderContainer.appendChild(sliderElement);
-      sliderContainer.appendChild(sliderMin);
-      sliderContainer.appendChild(sliderLabel);
-      sliderMainContainer.appendChild(sliderContainer);
-    }
   }
 
   addSliders() {
@@ -331,27 +282,6 @@ class VowelsEqualizer extends Equalizer{
     }
   }
 
-  updateSliders() {
-    for (const slider of this.sliders) {
-      const sliderElement = document.getElementById(slider.id);
-      slider.value = sliderElement.value;
-    }
-    this.equalize();
-  }
-
-  updateChart() {
-    
-  }
-  
-  updateSpectrogram() {
-    drawSpectrogram(outputData,outputSpectrogram);
-  }
-
-  equalize() {
-    super.equalize(this.sliders);
-    console.log(this.outputData);
-    this.updateSpectrogram();
-  }
 }
 
 const uniformRangeEqualizer = new UniformRangeEqualizer(inputData, inputTime);
@@ -497,7 +427,6 @@ collapses.forEach((collapse) => {
     collapse.classList.toggle("hidden");
   });
 });
-
 
 modeMenuItems.forEach((item) => {
   item.addEventListener("click", function () {
