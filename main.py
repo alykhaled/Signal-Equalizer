@@ -85,5 +85,9 @@ def equalize():
     # librosa.output.write_wav('equalized_audio.wav', y_eq, sr=sr)
 
     # return y_eq
-    return Response(json.dumps(y_eq.tolist()), mimetype='application/json')
+    res = {
+        'data': y_eq.tolist(),
+        'sample_rate': sr
+    }
+    return Response(json.dumps(res), mimetype='application/json')
 

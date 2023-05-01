@@ -31,7 +31,7 @@ let inputData       = [];
 let inputTime       = [];
 let outputData      = [];
 let outputTime      = [];
-const maxWidth      = 2000;
+const maxWidth      = 20000;
 const maxFrequency  = 1000;
 
 const inputChart    = new Chart(ctx, {
@@ -104,12 +104,16 @@ class Equalizer {
     this.inputTime = inputTime;
     this.outputData = [];
     this.outputTime = [];
+    this.sampleRate = 44100;
     this.maxWidth = 1500;
     this.maxFrequency = 1000;
+    this.audioBufferSourceNode = null;
   }
   initSliders() {
+    const sliderMainContainer = document.getElementById("sliders");
+    // clear sliders
+    sliderMainContainer.innerHTML = "";
     for (var slider of this.sliders) {
-      const sliderMainContainer = document.getElementById("sliders");
       const sliderContainer = document.createElement("div");
       sliderContainer.classList.add("slider");
 
@@ -189,8 +193,6 @@ class Equalizer {
       }
       outputChart.data.labels = this.outputTime;
       outputChart.data.datasets[0].data = this.outputData;
-      console.log(this.outputData);
-      console.log(this.outputTime);
       outputData = this.outputData;
       outputTime = this.outputTime;
 
@@ -215,20 +217,32 @@ class Equalizer {
     }).then((response) => {
       return response.json();
     }).then((data) => {
-      inputData = [];
-      for (let i = 0; i < data.length; i++) {
-        // inputTime.push(data[i].toFixed(8));
-        inputData.push(data[i]);
-      }
+      this.inputData = data["data"];
+      this.sampleRate = data["sample_rate"];
+      console.log(this.inputTime);
       inputChart.data.labels = inputTime;
-      inputChart.data.datasets[0].data = inputData;
-      console.log(inputData);
-      console.log(inputTime);
+      inputChart.data.datasets[0].data = this.inputData;
       inputChart.update();
-      drawSpectrogram(inputData,inputSpectrogram);
+      drawSpectrogram(this.inputData,inputSpectrogram);
 
     });
   }
+
+  playSound() {
+    const audioContext = new AudioContext();
+    console.log(this.inputData);
+    const audioBuffer = audioContext.createBuffer(1, this.inputData.length, this.sampleRate);
+    this.audioBufferSourceNode = audioContext.createBufferSource();
+    audioBuffer.getChannelData(0).set(this.inputData);
+    this.audioBufferSourceNode.buffer = audioBuffer;
+    this.audioBufferSourceNode.connect(audioContext.destination);
+    this.audioBufferSourceNode.start();
+  }
+
+  pauseSound() {
+    audioBufferSourceNode.stop();
+  }
+
 
 }
 
@@ -251,7 +265,6 @@ class UniformRangeEqualizer extends Equalizer {
         20,
         1
       );
-      // console.log(frequencyStep);
       this.sliders.push(slider);
     }
   }
@@ -284,8 +297,8 @@ class VowelsEqualizer extends Equalizer{
 
 }
 
+const vowelsEqualizer = new VowelsEqualizer(inputData, inputTime);
 const uniformRangeEqualizer = new UniformRangeEqualizer(inputData, inputTime);
-
 
 async function drawSpectrogram(data, canvas) {
   // make post request to server
@@ -374,6 +387,7 @@ playButton.addEventListener("click", (e) => {
     }, updateInterval);
 
     isPlaying = true;
+    uniformRangeEqualizer.playSound();
   }
 });
 
@@ -434,7 +448,13 @@ modeMenuItems.forEach((item) => {
     const modeButton = document.getElementById("dropdownNavbarLink");
     const modeLabel = modeButton.querySelector("p");
     modeLabel.textContent = mode;
-    // uniformRangeEqualizer.mode = mode;
-    uniformRangeEqualizer.equalize();
+    if (mode === "Uniform Range Mode") {
+      uniformRangeEqualizer.initSliders();
+      uniformRangeEqualizer.equalize();
+    } else if (mode === "Vowels Mode") {
+      vowelsEqualizer.initSliders();
+      vowelsEqualizer.equalize();
+    }
+
   });
 });
