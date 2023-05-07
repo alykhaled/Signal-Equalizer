@@ -9,6 +9,8 @@ const stopButton          = document.getElementById("stop-button");
 const hideSpectrogramBtn  = document.getElementById("spectrogramBtn"); //Checkbox for hiding spectrogram
 const speedSlider         = document.getElementById("speed");
 const speedLabel          = document.getElementById("speed-label");
+const scrollSlider        = document.getElementById("scroll");
+const scrollLabel         = document.getElementById("scroll-label");
 const dropdowns           = document.querySelectorAll('[data-dropdown-toggle]');
 const collapses           = document.querySelectorAll('[data-collapse-toggle]');
 const modeMenu            = document.getElementById("modesMenu");
@@ -23,7 +25,7 @@ outputCtx.fillRect(0, 0, outputSpectrogram.width, outputSpectrogram.height);
 
 var isPlaying       = false;
 var intervalId      = null;
-var updateInterval  = 5; // milliseconds
+var updateInterval  = 1000; // milliseconds
 var currentIndex    = 0;
 
 let audioFile       = null;
@@ -31,7 +33,8 @@ let inputData       = [];
 let inputTime       = [];
 let outputData      = [];
 let outputTime      = [];
-const maxWidth      = 20000;
+let sampleRate      = 44100;
+const maxWidth      = 5000;
 const maxFrequency  = 1000;
 
 const inputChart    = new Chart(ctx, {
@@ -243,7 +246,7 @@ class Equalizer {
     audioBuffer.getChannelData(0).set(this.inputData);
     this.audioBufferSourceNode.buffer = audioBuffer;
     this.audioBufferSourceNode.connect(audioContext.destination);
-    this.audioBufferSourceNode.start();aZZZZZ
+    this.audioBufferSourceNode.start();
   }
 
   pauseSound() {
@@ -357,6 +360,7 @@ class BiologicalSignalAbnormalitiesEqualizer extends Equalizer{
   }
 
 }
+
 const biologicalSignalAbnormalitiesEqualizer = new BiologicalSignalAbnormalitiesEqualizer(inputData, inputTime);
 const musicalInstrumentsEqualizer = new MusicalInstrumentsEqualizer(inputData, inputTime);
 const vowelsEqualizer = new VowelsEqualizer(inputData, inputTime);
@@ -410,7 +414,7 @@ fileInput.addEventListener('change', async (event) => {
     const audioContext = new AudioContext();
     audioContext.decodeAudioData(reader.result).then(async (buffer) => {
       const rawData = buffer.getChannelData(0);
-      const sampleRate = buffer.sampleRate;
+      sampleRate = buffer.sampleRate;
       const time = [];
       for (let i = 0; i < rawData.length; i++) {
         // flotation point precision
@@ -432,7 +436,7 @@ playButton.addEventListener("click", (e) => {
   if (!isPlaying) {
     intervalId = setInterval(function () {
       currentIndex = 0;
-      currentIndex++;
+      currentIndex += 5000;
       if (currentIndex >= inputChart.data.datasets[0].data.length) {
         currentIndex = 0;
       }
@@ -478,6 +482,20 @@ stopButton.addEventListener("click", () => {
 // Update the speed label's text when the slider value changes
 speedSlider.addEventListener("input", () => {
  speedLabel.textContent = speedSlider.value;
+});
+
+scrollSlider.addEventListener("input", () => {
+  scrollLabel.textContent = scrollSlider.value;
+  const maxIndex = Math.floor(inputData.length * (scrollSlider.value/100));
+  currentIndex = maxIndex;
+
+  inputChart.options.scales.x.min = maxIndex-6000;
+  inputChart.options.scales.x.max = maxIndex;
+  inputChart.update();
+
+  outputChart.options.scales.x.min = maxIndex-6000;
+  outputChart.options.scales.x.max = maxIndex;
+  outputChart.update();
 });
 
 hideSpectrogramBtn.addEventListener("click", (e) => {
