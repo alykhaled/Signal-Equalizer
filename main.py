@@ -27,7 +27,7 @@ def spectrogram():
     pylab.rcParams["figure.autolayout"] = True
 
     fig, ax = pylab.subplots()
-    ax.specgram(data, Fs=2)
+    ax.specgram(data, Fs=44100)
 
     # Convert image to bytes
     buffer = BytesIO()
@@ -45,6 +45,7 @@ def equalize():
     audio_file = request.files.get('file')
     gains = request.form.get('gains')
     gains = json.loads(gains)
+
     
     print(gains)
     # freq_ranges = [[0, 100], [100, 500], [500, 1000], [1000, 5000], [5000, 10000], [10000, 22050]]
@@ -60,6 +61,12 @@ def equalize():
 
     # Load audio data using librosa
     y, sr = librosa.load(audio_file)
+    if gains == []:
+        res = {
+            'data': y.tolist(),
+            'sample_rate': sr
+        }
+        return Response(json.dumps(res), mimetype='application/json')
 
     # Compute the FFT of the audio signal
     y_fft = np.fft.fft(y)

@@ -154,6 +154,11 @@ class Equalizer {
     }
   }
 
+  updateData(inputData, inputTime) {
+    this.inputData = inputData;
+    this.inputTime = inputTime;
+  }
+
   updateSliders() {
     for (const slider of this.sliders) {
       const sliderElement = document.getElementById(slider.id);
@@ -163,7 +168,7 @@ class Equalizer {
   }
 
   updateSpectrogram() {
-    drawSpectrogram(outputData,outputSpectrogram);
+    drawSpectrogram(this.outputData,outputSpectrogram);
   }
 
   equalize(){
@@ -187,14 +192,15 @@ class Equalizer {
       return response.json();
     }).then((data) => {
       this.outputTime = inputTime
-      this.outputData = [];
+      this.outputData = data['data'];
       for (let i = 0; i < data.length; i++) {
-        this.outputData.push(data[i]);
+        this.outputData.push(data['data'][i]);
       }
       outputChart.data.labels = this.outputTime;
-      outputChart.data.datasets[0].data = this.outputData;
+      outputChart.data.datasets[0].data = data['data'];
       outputData = this.outputData;
       outputTime = this.outputTime;
+      console.log(data);
 
       outputChart.update();
       this.updateSpectrogram();
@@ -220,6 +226,7 @@ class Equalizer {
       this.inputData = data["data"];
       this.sampleRate = data["sample_rate"];
       console.log(this.inputTime);
+      console.log(this.inputData);
       inputChart.data.labels = inputTime;
       inputChart.data.datasets[0].data = this.inputData;
       inputChart.update();
@@ -236,7 +243,7 @@ class Equalizer {
     audioBuffer.getChannelData(0).set(this.inputData);
     this.audioBufferSourceNode.buffer = audioBuffer;
     this.audioBufferSourceNode.connect(audioContext.destination);
-    this.audioBufferSourceNode.start();
+    this.audioBufferSourceNode.start();aZZZZZ
   }
 
   pauseSound() {
@@ -297,6 +304,61 @@ class VowelsEqualizer extends Equalizer{
 
 }
 
+class MusicalInstrumentsEqualizer extends Equalizer{
+  constructor(inputData, inputTime) {
+    super(inputData, inputTime);
+    this.addSliders();
+    this.initSliders();
+  }
+
+  addSliders() {
+    const instruments = ["flute", "violin", "trumpet", "clarinet"];
+    const minFrequency = [730, 500, 270, 400, 250];
+    const maxFrequency = [1090, 1700, 2290, 800, 595];
+    for (let i = 0; i < instruments.length; i++) {
+      const slider = new Slider(
+        `instruments-slider-${instruments[i]}`,
+        minFrequency[i],
+        maxFrequency[i],
+        1,
+        -20,
+        20,
+        1
+      );
+      this.sliders.push(slider);
+    }
+  }
+
+}
+
+class BiologicalSignalAbnormalitiesEqualizer extends Equalizer{
+  constructor(inputData, inputTime) {
+    super(inputData, inputTime);
+    this.addSliders();
+    this.initSliders();
+  }
+
+  addSliders() {
+    const abnormalities = ["extrasystole", "murmur", "normal", "extrahls", "murmurhls"];
+    const minFrequency = [730, 500, 270, 400, 250];
+    const maxFrequency = [1090, 1700, 2290, 800, 595];
+    for (let i = 0; i < abnormalities.length; i++) {
+      const slider = new Slider(
+        `abnormalities-slider-${abnormalities[i]}`,
+        minFrequency[i],
+        maxFrequency[i],
+        1,
+        -20,
+        20,
+        1
+      );
+      this.sliders.push(slider);
+    }
+  }
+
+}
+const biologicalSignalAbnormalitiesEqualizer = new BiologicalSignalAbnormalitiesEqualizer(inputData, inputTime);
+const musicalInstrumentsEqualizer = new MusicalInstrumentsEqualizer(inputData, inputTime);
 const vowelsEqualizer = new VowelsEqualizer(inputData, inputTime);
 const uniformRangeEqualizer = new UniformRangeEqualizer(inputData, inputTime);
 
@@ -355,6 +417,8 @@ fileInput.addEventListener('change', async (event) => {
         time.push((i/sampleRate).toFixed(4));
       }
       inputTime = time;
+      inputData = rawData;
+      // uniformRangeEqualizer.updateData(inputData, inputTime);
       uniformRangeEqualizer.read();
       uniformRangeEqualizer.equalize();
 
@@ -454,6 +518,14 @@ modeMenuItems.forEach((item) => {
     } else if (mode === "Vowels Mode") {
       vowelsEqualizer.initSliders();
       vowelsEqualizer.equalize();
+    }
+    else if (mode === "Musical Instruments Mode") {
+      musicalInstrumentsEqualizer.initSliders();
+      musicalInstrumentsEqualizer.equalize();
+    }
+    else if (mode === "Biological Signal Abnormalities"){
+      biologicalSignalAbnormalitiesEqualizer.initSliders();
+      biologicalSignalAbnormalitiesEqualizer.equalize();
     }
 
   });
