@@ -11,12 +11,17 @@ const speedSlider         = document.getElementById("speed");
 const speedLabel          = document.getElementById("speed-label");
 const scrollSlider        = document.getElementById("scroll");
 const scrollLabel         = document.getElementById("scroll-label");
+const playOutputButton    = document.getElementById("play-button-out");
 const dropdowns           = document.querySelectorAll('[data-dropdown-toggle]');
 const collapses           = document.querySelectorAll('[data-collapse-toggle]');
 const modeMenu            = document.getElementById("modesMenu");
 const modeMenuItems       = modeMenu.querySelectorAll("li");
 const inputCtx            = inputSpectrogram.getContext("2d");
 const outputCtx           = outputSpectrogram.getContext("2d");
+let controller = new AbortController();
+
+// Get the abort signal from the controller
+let signal = controller.signal;
 
 inputCtx.fillStyle = '#000000';
 inputCtx.fillRect(0, 0, inputSpectrogram.width, inputSpectrogram.height);
@@ -29,6 +34,7 @@ var updateInterval  = 1000; // milliseconds
 var currentIndex    = 0;
 
 let audioFile       = null;
+let outputAudioFile = null;
 let inputData       = [];
 let inputTime       = [];
 let outputData      = [];
@@ -171,7 +177,7 @@ class Equalizer {
   }
 
   updateSpectrogram() {
-    drawSpectrogram(this.outputData,outputSpectrogram);
+    drawSpectrogram(outputAudioFile,outputSpectrogram);
   }
 
   equalize(){
@@ -188,65 +194,164 @@ class Equalizer {
     formData.append('gains', JSON.stringify(gains));
     formData.append('freqRanges', JSON.stringify(freqRanges));
     // send audio file to server
+    controller.abort();
+    controller = new AbortController();
     fetch('http://127.0.0.1:5000/equalize', {
       method: 'POST',
-      body: formData
+      body: formData,
+      signal: controller.signal
     }).then((response) => {
-      return response.json();
+      console.log(response);
+      return response.blob();
     }).then((data) => {
-      this.outputTime = inputTime
-      this.outputData = data['data'];
-      for (let i = 0; i < data.length; i++) {
-        this.outputData.push(data['data'][i]);
-      }
-      outputChart.data.labels = this.outputTime;
-      outputChart.data.datasets[0].data = data['data'];
-      outputData = this.outputData;
-      outputTime = this.outputTime;
       console.log(data);
+      // read the wav file from the server
+      outputAudioFile = data;
+      const reader = new FileReader();
+      reader.readAsArrayBuffer(data);
+      reader.onload = () => {
+        // decode the wav file
+        let audioContext = new AudioContext();
+        // console.log(reader.result);
+        audioContext.decodeAudioData(reader.result).then((buffer) => {
+          // update the output data
+          this.outputData = buffer.getChannelData(0);
+          const sampleRate = buffer.sampleRate;
+          console.log(this.outputData);
+          this.outputTime = [];
+          for (let i = 0; i < this.outputData.length; i++) {
+            this.outputTime.push(i / sampleRate);
+          }
+          // update the output chart
+          outputChart.data.labels = this.outputTime;
+          outputChart.data.datasets[0].data = this.outputData;
+          outputChart.update();
+          // update the spectrogram
+          this.updateSpectrogram();
+        });
+      };
 
-      outputChart.update();
-      this.updateSpectrogram();
-      
     });
+
+      
+      
+      // this.outputTime = inputTime
+      // this.outputData = data['data'];
+      // for (let i = 0; i < data.length; i++) {
+      //   this.outputData.push(data['data'][i]);
+      // }
+      // outputChart.data.labels = this.outputTime;
+      // outputChart.data.datasets[0].data = data['data'];
+      // outputData = this.outputData;
+      // outputTime = this.outputTime;
+      // console.log(data);
+
+      // outputChart.update();
+      // this.updateSpectrogram();
   }
 
   read() {
     const gains = [];
     const freqRanges = [];
-
+    for (const slider of this.sliders) {
+      // convert slider value to float
+      gains.push(parseFloat(slider.value));
+      freqRanges.push([slider.frequencyMin, slider.frequencyMax]);
+    }
     const formData = new FormData();
     formData.append('file', audioFile);
     formData.append('gains', JSON.stringify(gains));
     formData.append('freqRanges', JSON.stringify(freqRanges));
     // send audio file to server
+
     fetch('http://127.0.0.1:5000/equalize', {
       method: 'POST',
       body: formData
     }).then((response) => {
-      return response.json();
+      console.log(response);
+      console.log("readding");
+      return response.blob();
     }).then((data) => {
-      this.inputData = data["data"];
-      this.sampleRate = data["sample_rate"];
-      console.log(this.inputTime);
-      console.log(this.inputData);
-      inputChart.data.labels = inputTime;
-      inputChart.data.datasets[0].data = this.inputData;
-      inputChart.update();
-      drawSpectrogram(this.inputData,inputSpectrogram);
+      console.log(data);
+      // read the wav file from the server
+      audioFile = data;
+      const reader = new FileReader();
+      reader.readAsArrayBuffer(data);
+      reader.onload = () => {
+        // decode the wav file
+        let audioContext = new AudioContext();
+        // console.log(reader.result);
+        audioContext.decodeAudioData(reader.result).then((buffer) => {
+          // update the output data
+          this.inputData = buffer.getChannelData(0);
+          const sampleRate = buffer.sampleRate;
+          console.log(this.outputData);
+          this.outputTime = [];
+          for (let i = 0; i < this.outputData.length; i++) {
+            this.inputTime.push(i / sampleRate);
+          }
+          // update the output chart
+          inputChart.data.labels = this.inputTime;
+          inputChart.data.datasets[0].data = this.inputData;
+          inputChart.update();
+          // update the spectrogram
+          drawSpectrogram(audioFile,inputSpectrogram);
+        });
+      };
 
     });
+
   }
 
   playSound() {
     const audioContext = new AudioContext();
-    console.log(this.inputData);
-    const audioBuffer = audioContext.createBuffer(1, this.inputData.length, this.sampleRate);
-    this.audioBufferSourceNode = audioContext.createBufferSource();
-    audioBuffer.getChannelData(0).set(this.inputData);
-    this.audioBufferSourceNode.buffer = audioBuffer;
-    this.audioBufferSourceNode.connect(audioContext.destination);
-    this.audioBufferSourceNode.start();
+    // conver the blob audio file to an audio buffer
+    const reader = new FileReader();
+    reader.readAsArrayBuffer(audioFile);
+    reader.onload = () =>
+    {
+      audioContext.decodeAudioData(reader.result).then((buffer) => {
+        // create a buffer source node
+        const audioBufferSourceNode = audioContext.createBufferSource();
+        // set the buffer source node buffer
+        // print duration of the audio file
+        console.log(buffer.duration);
+        audioBufferSourceNode.buffer = buffer;
+        // set sample rate to 44100
+        audioBufferSourceNode.playbackRate.value = 1;
+        // connect the buffer source node to the destination
+        audioBufferSourceNode.connect(audioContext.destination);
+        // start playing the buffer source node
+        audioBufferSourceNode.start();
+      }
+      );
+    };   
+    
+  }
+
+  playOutputSound() {
+    const audioContext = new AudioContext();
+    // conver the blob audio file to an audio buffer
+    const reader = new FileReader();
+    reader.readAsArrayBuffer(outputAudioFile);
+    reader.onload = () =>
+    {
+      audioContext.decodeAudioData(reader.result).then((buffer) => {
+        // create a buffer source node
+        const audioBufferSourceNode = audioContext.createBufferSource();
+        // set the buffer source node buffer
+        // print duration of the audio file
+        console.log(buffer.duration);
+        audioBufferSourceNode.buffer = buffer;
+        // set sample rate to 44100
+        audioBufferSourceNode.playbackRate.value = 1;
+        // connect the buffer source node to the destination
+        audioBufferSourceNode.connect(audioContext.destination);
+        // start playing the buffer source node
+        audioBufferSourceNode.start();
+      }
+      );
+    }
   }
 
   pauseSound() {
@@ -315,9 +420,9 @@ class MusicalInstrumentsEqualizer extends Equalizer{
   }
 
   addSliders() {
-    const instruments = ["flute", "violin", "trumpet", "clarinet"];
-    const minFrequency = [730, 500, 270, 400, 250];
-    const maxFrequency = [1090, 1700, 2290, 800, 595];
+    const instruments = ["drums", "violin", "trumpet", "clarinet"];
+    const minFrequency = [20, 400, 270, 400];
+    const maxFrequency = [400, 5000, 2290, 800];
     for (let i = 0; i < instruments.length; i++) {
       const slider = new Slider(
         `instruments-slider-${instruments[i]}`,
@@ -366,24 +471,15 @@ const musicalInstrumentsEqualizer = new MusicalInstrumentsEqualizer(inputData, i
 const vowelsEqualizer = new VowelsEqualizer(inputData, inputTime);
 const uniformRangeEqualizer = new UniformRangeEqualizer(inputData, inputTime);
 
-async function drawSpectrogram(data, canvas) {
+async function drawSpectrogram(audioFile, canvas) {
   // make post request to server
   // response is image so take it and view it
-  data = data.map((d) => {
-    // Remove NaN values
-    if (isNaN(d)) {
-      return 0;
-    }
-
-    return d;
-  });
+  const formData = new FormData();
+  formData.append('file', audioFile);
   const url = "http://127.0.0.1:5000/spectrogram";
   const options = {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: `{"data": [${data}]}`
+    body: formData
   };
   fetch(url, options)
   .then(function(response) {
@@ -433,30 +529,30 @@ fileInput.addEventListener('change', async (event) => {
 
 
 playButton.addEventListener("click", (e) => {
-  if (!isPlaying) {
-    intervalId = setInterval(function () {
-      currentIndex = 0;
-      currentIndex += 5000;
-      if (currentIndex >= inputChart.data.datasets[0].data.length) {
-        currentIndex = 0;
-      }
-      inputChart.data.datasets[0].data.shift();
-      inputChart.data.labels.shift();
-      inputChart.data.labels.push(inputTime[currentIndex]);
-      inputChart.data.datasets[0].data.push(inputData[currentIndex]);
-      inputChart.update();
+  // if (!isPlaying) {
+  //   intervalId = setInterval(function () {
+  //     currentIndex = 0;
+  //     currentIndex += 5000;
+  //     if (currentIndex >= inputChart.data.datasets[0].data.length) {
+  //       currentIndex = 0;
+  //     }
+  //     inputChart.data.datasets[0].data.shift();
+  //     inputChart.data.labels.shift();
+  //     inputChart.data.labels.push(inputTime[currentIndex]);
+  //     inputChart.data.datasets[0].data.push(inputData[currentIndex]);
+  //     inputChart.update();
 
-      outputChart.data.datasets[0].data.shift();
-      outputChart.data.labels.shift();
-      outputChart.data.labels.push(outputTime[currentIndex]);
-      outputChart.data.datasets[0].data.push(outputData[currentIndex]);
-      outputChart.update();
+  //     outputChart.data.datasets[0].data.shift();
+  //     outputChart.data.labels.shift();
+  //     outputChart.data.labels.push(outputTime[currentIndex]);
+  //     outputChart.data.datasets[0].data.push(outputData[currentIndex]);
+  //     outputChart.update();
 
-    }, updateInterval);
+  //   }, updateInterval);
 
-    isPlaying = true;
-    uniformRangeEqualizer.playSound();
-  }
+  //   isPlaying = true;
+  // }
+  uniformRangeEqualizer.playSound();
 });
 
 //Pause Button
@@ -547,4 +643,8 @@ modeMenuItems.forEach((item) => {
     }
 
   });
+});
+
+playOutputButton.addEventListener("click", (e) => {
+  uniformRangeEqualizer.playOutputSound();
 });
